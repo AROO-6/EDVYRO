@@ -1,0 +1,530 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Customer Churn Dashboard</title>
+<style>
+/* Layout: sticky filter bar over KPI tiles, then a two-column grid of labeled bar charts, each with a live insight line, then segment table, definitions and raw data. */
+:root {
+  --bg: #f9f9f7;
+  --surface: #fcfcfb;
+  --ink: #0b0b0b;
+  --ink2: #52514e;
+  --muted: #66655f;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11, 11, 11, 0.10);
+  --retained: #2a78d6;
+  --churned: #eb6834;
+  --chip-on: #e8f0fb;
+  --focus: #2a78d6;
+  --tip-bg: #0b0b0b;
+  --tip-ink: #ffffff;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d0d0d;
+    --surface: #1a1a19;
+    --ink: #ffffff;
+    --ink2: #c3c2b7;
+    --muted: #a3a199;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255, 255, 255, 0.10);
+    --retained: #3987e5;
+    --churned: #d95926;
+    --chip-on: #1d2a3d;
+    --focus: #6da7ec;
+    --tip-bg: #ffffff;
+    --tip-ink: #0b0b0b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d0d0d;
+  --surface: #1a1a19;
+  --ink: #ffffff;
+  --ink2: #c3c2b7;
+  --muted: #a3a199;
+  --grid: #2c2c2a;
+  --axis: #383835;
+  --border: rgba(255, 255, 255, 0.10);
+  --retained: #3987e5;
+  --churned: #d95926;
+  --chip-on: #1d2a3d;
+  --focus: #6da7ec;
+  --tip-bg: #ffffff;
+  --tip-ink: #0b0b0b;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  padding-inline: 16px;
+  padding-block: 20px 48px;
+}
+.wrap { max-width: 1120px; margin-inline: auto; display: flex; flex-direction: column; gap: 20px; }
+h1 { font-size: 24px; line-height: 1.2; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+h2 { font-size: 15px; margin: 0; font-weight: 600; text-wrap: balance; }
+p { margin: 0; }
+.sub { color: var(--ink2); max-width: 70ch; margin-top: 6px; }
+.eyebrow { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+
+/* filters */
+.filters {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.filter-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+.count { color: var(--ink2); font-variant-numeric: tabular-nums; }
+.groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px 24px; }
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+legend { padding: 0; margin-bottom: 6px; font-size: 12px; font-weight: 600; color: var(--ink2); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--axis); border-radius: 6px;
+  padding: 4px 10px; cursor: pointer; background: var(--surface);
+  font-size: 13px;
+}
+.chip:hover { border-color: var(--ink2); }
+.chip:has(input:checked) { background: var(--chip-on); border-color: var(--retained); }
+.chip:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+.chip input { margin: 0; accent-color: var(--retained); }
+.chip .n { color: var(--muted); font-variant-numeric: tabular-nums; }
+button.reset {
+  font: inherit; color: var(--ink); background: transparent;
+  border: 1px solid var(--axis); border-radius: 6px; padding: 4px 12px; cursor: pointer;
+}
+button.reset:hover { border-color: var(--ink2); }
+button.reset:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* KPI tiles */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.tile {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; min-width: 0;
+}
+.tile .val { font-size: 32px; line-height: 1.1; font-weight: 600; letter-spacing: -0.02em; }
+.tile .unit { font-size: 14px; font-weight: 500; color: var(--ink2); letter-spacing: 0; }
+.tile .note { color: var(--ink2); font-size: 13px; }
+.tile .note.dim { color: var(--muted); }
+
+/* legend */
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; color: var(--ink2); }
+.key { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 12px; height: 12px; border-radius: 2px; display: inline-block; }
+.sw.ret { background: var(--retained); }
+.sw.chu { background: var(--churned); }
+
+/* chart cards */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; }
+.card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0;
+}
+.card .desc { color: var(--ink2); font-size: 13px; margin-top: 2px; }
+.rows { display: flex; flex-direction: column; gap: 10px; }
+.row { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 4px 12px; align-items: center; }
+.row .lab { font-size: 13px; color: var(--ink); }
+.track { height: 18px; display: flex; gap: 2px; background: transparent; border-bottom: 1px solid var(--axis); min-width: 0; }
+.track.empty { background: repeating-linear-gradient(135deg, transparent 0 6px, var(--grid) 6px 7px); }
+.seg { height: 100%; border-radius: 0 4px 4px 0; min-width: 0; }
+.seg.ret { background: var(--retained); border-radius: 0; }
+.seg.chu { background: var(--churned); }
+.seg.only { border-radius: 0 4px 4px 0; }
+.seg:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.row .val { grid-column: 2; font-size: 12px; color: var(--ink2); font-variant-numeric: tabular-nums; }
+.insight {
+  border-top: 1px solid var(--grid); padding-top: 10px;
+  color: var(--ink); font-size: 13px;
+}
+.insight b { font-weight: 600; }
+.insight .small { display: block; color: var(--muted); margin-top: 2px; }
+
+/* tables */
+.tablecard { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.scroll { overflow-x: auto; max-width: 100%; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 600; border-bottom-color: var(--axis); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.tag { font-weight: 600; }
+.tag.chu { color: var(--ink); }
+.tag.chu::before { content: "\2715\00a0"; color: var(--churned); }
+.tag.ret::before { content: "\2713\00a0"; color: var(--retained); }
+.empty-msg { padding: 20px; text-align: center; color: var(--ink2); }
+
+dl.defs { margin: 0; display: grid; grid-template-columns: minmax(0, 190px) minmax(0, 1fr); gap: 8px 16px; }
+dl.defs dt { font-weight: 600; }
+dl.defs dd { margin: 0; color: var(--ink2); }
+@media (max-width: 560px) {
+  dl.defs { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  dl.defs dd { margin-bottom: 8px; }
+  .row { grid-template-columns: minmax(0, 1fr); }
+  .row .val { grid-column: 1; }
+}
+.foot { color: var(--muted); font-size: 12px; max-width: 80ch; }
+a { color: var(--retained); }
+
+#tip {
+  position: fixed; z-index: 10; pointer-events: none;
+  background: var(--tip-bg); color: var(--tip-ink);
+  padding: 6px 10px; border-radius: 6px; font-size: 12px; line-height: 1.4;
+  max-width: 240px; display: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .seg { transition: flex-basis 0.2s ease; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Subscription customers · 15-customer sample</div>
+    <h1>Customer churn dashboard</h1>
+    <p class="sub">Who left, who stayed, how much monthly revenue walked out with them, and which segments to look at first. Use the filters to slice any number or chart on the page.</p>
+  </header>
+
+  <section class="filters" aria-label="Filters">
+    <div class="filter-head">
+      <h2>Filters</h2>
+      <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+        <span class="count" id="count" aria-live="polite"></span>
+        <button type="button" class="reset" id="reset">Reset filters</button>
+      </div>
+    </div>
+    <div class="groups" id="groups"></div>
+  </section>
+
+  <section class="tiles" aria-label="Key metrics" id="tiles"></section>
+
+  <section style="display:flex; flex-direction:column; gap:12px;" aria-label="Charts">
+    <div class="legend" aria-label="Chart legend">
+      <span class="key"><span class="sw ret"></span>Retained</span>
+      <span class="key"><span class="sw chu"></span>Churned</span>
+      <span style="color:var(--muted)">Bars show each group's share of customers (first three charts) or monthly revenue (revenue chart). Hover or focus a bar for exact counts.</span>
+    </div>
+    <div class="cards" id="cards"></div>
+  </section>
+
+  <section class="tablecard" aria-label="Segment table">
+    <div>
+      <h2>Segments: plan × contract</h2>
+      <p class="desc" style="color:var(--ink2); font-size:13px; margin-top:2px;">Every combination of subscription plan and contract type in the current filter, with its churn rate and monthly revenue lost.</p>
+    </div>
+    <div class="scroll" id="segtable"></div>
+    <p class="insight" id="seginsight" style="border-top:1px solid var(--grid); padding-top:10px;"></p>
+  </section>
+
+  <section class="tablecard" aria-label="Definitions">
+    <h2>How each number is defined</h2>
+    <dl class="defs">
+      <dt>Churn rate</dt><dd>Customers with Churn = Yes ÷ customers in the current filter.</dd>
+      <dt>Retention rate</dt><dd>1 − churn rate: customers still active ÷ customers in the current filter.</dd>
+      <dt>Revenue at risk</dt><dd>Monthly revenue (MRR) already lost: the sum of MonthlyCharges for churned customers, with the share of total MRR and the ×12 annual equivalent. As a forward-looking check it also shows MRR from active customers on Month-to-Month contracts, the group where churn is concentrated.</dd>
+      <dt>Tenure KPIs</dt><dd>Average TenureMonths overall, for churned customers and for retained customers. Tenure bands used by the filter: 0–6, 7–12, 13–24 and 25+ months.</dd>
+      <dt>Support tickets</dt><dd>Average SupportTickets per customer, churned vs retained.</dd>
+      <dt>Currency</dt><dd>The source file gives MonthlyCharges and TotalCharges without a currency, so revenue figures are shown as plain amounts.</dd>
+    </dl>
+    <p class="foot">Source: <a href="https://edvyro.in/datasets/customer_churn_sample.csv" rel="noopener">customer_churn_sample.csv</a> (15 customers, 11 fields, no missing values). The sample is small, so a single customer moves a rate by about 7 points. Read the percentages as direction, not as forecasts. Contract type and tenure overlap in this data (every Month-to-Month customer has 14 months of tenure or less, every other customer has 15 or more), so the two effects cannot be separated here.</p>
+  </section>
+
+  <section class="tablecard" aria-label="Customer data">
+    <div>
+      <h2>Customers in view</h2>
+      <p class="desc" style="color:var(--ink2); font-size:13px; margin-top:2px;">The same rows behind every chart, as a table.</p>
+    </div>
+    <div class="scroll" id="datatable"></div>
+  </section>
+</div>
+<div id="tip" role="tooltip"></div>
+
+<script>
+const CSV = `CustomerID,Gender,Age,TenureMonths,SubscriptionType,MonthlyCharges,TotalCharges,ContractType,SupportTickets,PaymentMethod,Churn
+CUST-1001,Female,34,12,Basic,49.99,599.88,Month-to-Month,3,Credit Card,Yes
+CUST-1002,Male,45,24,Pro,79.99,1919.76,One Year,1,Bank Transfer,No
+CUST-1003,Female,29,6,Basic,49.99,299.94,Month-to-Month,5,UPI,Yes
+CUST-1004,Male,52,36,Enterprise,149.99,5399.64,Two Year,0,Credit Card,No
+CUST-1005,Female,41,8,Pro,79.99,639.92,Month-to-Month,4,Debit Card,Yes
+CUST-1006,Male,31,18,Basic,49.99,899.82,One Year,2,UPI,No
+CUST-1007,Female,23,3,Basic,49.99,149.97,Month-to-Month,6,Credit Card,Yes
+CUST-1008,Male,60,48,Enterprise,149.99,7199.52,Two Year,1,Bank Transfer,No
+CUST-1009,Female,38,15,Pro,79.99,1199.85,One Year,2,Credit Card,No
+CUST-1010,Male,27,4,Basic,49.99,199.96,Month-to-Month,4,UPI,Yes
+CUST-1011,Female,49,30,Enterprise,149.99,4499.70,Two Year,0,Credit Card,No
+CUST-1012,Male,33,14,Pro,79.99,1119.86,Month-to-Month,3,Debit Card,Yes
+CUST-1013,Female,55,22,Basic,49.99,1099.78,One Year,1,Bank Transfer,No
+CUST-1014,Male,26,2,Basic,49.99,99.98,Month-to-Month,5,UPI,Yes
+CUST-1015,Female,43,40,Enterprise,149.99,5999.60,Two Year,1,Credit Card,No`;
+
+const ALL = CSV.trim().split('\n').slice(1).map(function (line) {
+  const f = line.split(',');
+  return { id: f[0], gender: f[1], age: +f[2], tenure: +f[3], plan: f[4], mc: +f[5], tc: +f[6],
+           contract: f[7], tickets: +f[8], pay: f[9], churn: f[10] === 'Yes' };
+});
+
+const CONTRACTS = ['Month-to-Month', 'One Year', 'Two Year'];
+const BANDS = ['0–6 months', '7–12 months', '13–24 months', '25+ months'];
+const PAYS = ['Bank Transfer', 'Credit Card', 'Debit Card', 'UPI'];
+const PLANS = ['Basic', 'Pro', 'Enterprise'];
+
+function band(t) { return t <= 6 ? BANDS[0] : t <= 12 ? BANDS[1] : t <= 24 ? BANDS[2] : BANDS[3]; }
+ALL.forEach(function (r) { r.band = band(r.tenure); });
+
+const DIMS = [
+  { id: 'contract', label: 'Contract', keys: CONTRACTS, get: function (r) { return r.contract; } },
+  { id: 'band', label: 'Tenure', keys: BANDS, get: function (r) { return r.band; } },
+  { id: 'pay', label: 'Payment method', keys: PAYS, get: function (r) { return r.pay; } }
+];
+const state = {};
+DIMS.forEach(function (d) { state[d.id] = new Set(d.keys); });
+
+const $ = function (id) { return document.getElementById(id); };
+const sum = function (a, f) { return a.reduce(function (s, x) { return s + f(x); }, 0); };
+const pct = function (x) { return (x * 100).toFixed(1) + '%'; };
+const money = function (x) { return x.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+const one = function (x) { return x.toFixed(1); };
+const esc = function (s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); };
+
+function filtered() {
+  return ALL.filter(function (r) { return DIMS.every(function (d) { return state[d.id].has(d.get(r)); }); });
+}
+
+/* ---------- filters ---------- */
+function buildFilters() {
+  const host = $('groups');
+  DIMS.forEach(function (d) {
+    const fs = document.createElement('fieldset');
+    const lg = document.createElement('legend');
+    lg.textContent = d.label;
+    fs.appendChild(lg);
+    const wrap = document.createElement('div');
+    wrap.className = 'chips';
+    d.keys.forEach(function (k, i) {
+      const total = ALL.filter(function (r) { return d.get(r) === k; }).length;
+      const lab = document.createElement('label');
+      lab.className = 'chip';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.id = 'f-' + d.id + '-' + i;
+      cb.checked = true;
+      cb.addEventListener('change', function () {
+        if (cb.checked) state[d.id].add(k); else state[d.id].delete(k);
+        render();
+      });
+      lab.appendChild(cb);
+      lab.appendChild(document.createTextNode(k + ' '));
+      const n = document.createElement('span');
+      n.className = 'n';
+      n.textContent = '(' + total + ')';
+      lab.appendChild(n);
+      wrap.appendChild(lab);
+    });
+    fs.appendChild(wrap);
+    host.appendChild(fs);
+  });
+  $('reset').addEventListener('click', function () {
+    DIMS.forEach(function (d) { state[d.id] = new Set(d.keys); });
+    document.querySelectorAll('.chip input').forEach(function (cb) { cb.checked = true; });
+    render();
+  });
+}
+
+/* ---------- tiles ---------- */
+function tile(label, val, unit, notes) {
+  return '<div class="tile"><div class="eyebrow">' + label + '</div>' +
+    '<div class="val">' + val + (unit ? ' <span class="unit">' + unit + '</span>' : '') + '</div>' +
+    notes.map(function (n, i) { return '<div class="note' + (i ? ' dim' : '') + '">' + n + '</div>'; }).join('') + '</div>';
+}
+function renderTiles(rows) {
+  const n = rows.length;
+  if (!n) {
+    $('tiles').innerHTML = ['Churn rate', 'Retention rate', 'Revenue at risk', 'Average tenure'].map(function (l) {
+      return tile(l, '–', '', ['No customers match the filters']);
+    }).join('');
+    return;
+  }
+  const ch = rows.filter(function (r) { return r.churn; });
+  const re = rows.filter(function (r) { return !r.churn; });
+  const mrr = sum(rows, function (r) { return r.mc; });
+  const lost = sum(ch, function (r) { return r.mc; });
+  const exposed = sum(re.filter(function (r) { return r.contract === 'Month-to-Month'; }), function (r) { return r.mc; });
+  const avg = function (a) { return a.length ? one(sum(a, function (r) { return r.tenure; }) / a.length) : '–'; };
+  $('tiles').innerHTML =
+    tile('Churn rate', pct(ch.length / n), '', [ch.length + ' of ' + n + ' customers left']) +
+    tile('Retention rate', pct(re.length / n), '', [re.length + ' of ' + n + ' customers stayed']) +
+    tile('Revenue at risk', money(lost), 'per month',
+      [pct(lost / mrr) + ' of ' + money(mrr) + ' MRR · ' + money(lost * 12) + ' a year',
+       'Active Month-to-Month MRR still exposed: ' + money(exposed)]) +
+    tile('Average tenure', avg(rows), 'months', ['Churned ' + avg(ch) + ' · Retained ' + avg(re) + ' months']);
+}
+
+/* ---------- charts ---------- */
+function stat(rows, keyFn, k) {
+  const s = rows.filter(function (r) { return keyFn(r) === k; });
+  return { k: k, n: s.length, c: s.filter(function (r) { return r.churn; }).length, rows: s };
+}
+function rateChart(title, desc, rows, dim) {
+  const stats = dim.keys.map(function (k) { return stat(rows, dim.get, k); });
+  const body = stats.map(function (s) {
+    const lab = '<div class="lab">' + esc(s.k) + '</div>';
+    if (!s.n) {
+      return '<div class="row">' + lab + '<div class="track empty" role="img" aria-label="' + esc(s.k) + ': no customers in view"></div><div class="val">No customers in view</div></div>';
+    }
+    const r = s.n - s.c;
+    const segs = [];
+    if (r) segs.push('<div class="seg ret' + (s.c ? '' : ' only') + '" tabindex="0" style="flex:' + r + ' 1 0" data-tip="' + esc(s.k + ': ' + r + ' retained of ' + s.n) + '"></div>');
+    if (s.c) segs.push('<div class="seg chu" tabindex="0" style="flex:' + s.c + ' 1 0" data-tip="' + esc(s.k + ': ' + s.c + ' churned of ' + s.n) + '"></div>');
+    return '<div class="row">' + lab +
+      '<div class="track" role="img" aria-label="' + esc(s.k + ': ' + s.c + ' of ' + s.n + ' churned, ' + pct(s.c / s.n)) + '">' + segs.join('') + '</div>' +
+      '<div class="val"><b style="color:var(--ink)">' + pct(s.c / s.n) + ' churn</b> · ' + s.c + ' of ' + s.n + ' customers</div></div>';
+  }).join('');
+  const live = stats.filter(function (s) { return s.n; });
+  let ins = 'Nothing to compare with the current filters.';
+  if (live.length) {
+    const max = Math.max.apply(null, live.map(function (s) { return s.c / s.n; }));
+    if (max === 0) {
+      ins = 'No churn in the groups currently in view.';
+    } else {
+      const top = live.filter(function (s) { return s.c / s.n === max; });
+      ins = '<b>Highest churn:</b> ' + top.map(function (s) { return esc(s.k); }).join(' and ') + ' at ' + pct(max) +
+        ' (' + top.map(function (s) { return s.c + ' of ' + s.n; }).join(', ') + ').';
+      const zero = live.filter(function (s) { return s.c === 0; });
+      if (zero.length && live.length > 1) ins += '<span class="small">No churn at all in: ' + zero.map(function (s) { return esc(s.k); }).join(', ') + '.</span>';
+    }
+  }
+  return '<article class="card"><div><h2>' + title + '</h2><p class="desc">' + desc + '</p></div><div class="rows">' + body + '</div><p class="insight">' + ins + '</p></article>';
+}
+
+function revenueChart(rows) {
+  const stats = PLANS.map(function (p) {
+    const s = rows.filter(function (r) { return r.plan === p; });
+    const lost = sum(s.filter(function (r) { return r.churn; }), function (r) { return r.mc; });
+    const kept = sum(s.filter(function (r) { return !r.churn; }), function (r) { return r.mc; });
+    return { p: p, n: s.length, lost: lost, kept: kept, tot: lost + kept };
+  });
+  const max = Math.max.apply(null, stats.map(function (s) { return s.tot; }).concat([1]));
+  const body = stats.map(function (s) {
+    const lab = '<div class="lab">' + s.p + '</div>';
+    if (!s.n) return '<div class="row">' + lab + '<div class="track empty" role="img" aria-label="' + s.p + ': no customers in view"></div><div class="val">No customers in view</div></div>';
+    const segs = [];
+    if (s.kept) segs.push('<div class="seg ret' + (s.lost ? '' : ' only') + '" tabindex="0" style="flex:' + (s.kept / max * 100) + ' 1 0" data-tip="' + s.p + ': ' + money(s.kept) + ' retained MRR"></div>');
+    if (s.lost) segs.push('<div class="seg chu" tabindex="0" style="flex:' + (s.lost / max * 100) + ' 1 0" data-tip="' + s.p + ': ' + money(s.lost) + ' MRR lost to churn"></div>');
+    segs.push('<div style="flex:' + ((max - s.tot) / max * 100) + ' 1 0"></div>');
+    return '<div class="row">' + lab +
+      '<div class="track" role="img" aria-label="' + s.p + ': ' + money(s.lost) + ' of ' + money(s.tot) + ' monthly revenue lost">' + segs.join('') + '</div>' +
+      '<div class="val"><b style="color:var(--ink)">' + money(s.lost) + ' lost</b> of ' + money(s.tot) + ' MRR · ' + s.n + ' customers</div></div>';
+  }).join('');
+  const live = stats.filter(function (s) { return s.lost > 0; });
+  let ins = 'No revenue lost to churn in the current view.';
+  if (live.length) {
+    const top = live.slice().sort(function (a, b) { return b.lost - a.lost; })[0];
+    const total = sum(live, function (s) { return s.lost; });
+    ins = '<b>Largest loss:</b> ' + top.p + ', ' + money(top.lost) + ' a month (' + pct(top.lost / total) + ' of all MRR lost).';
+  }
+  return '<article class="card"><div><h2>Monthly revenue by plan</h2><p class="desc">Bar length is MRR, split into revenue kept and revenue lost to churn.</p></div><div class="rows">' + body + '</div><p class="insight">' + ins + '</p></article>';
+}
+
+function ticketChart(rows) {
+  const g = [
+    { k: 'Retained', rows: rows.filter(function (r) { return !r.churn; }), cls: 'ret' },
+    { k: 'Churned', rows: rows.filter(function (r) { return r.churn; }), cls: 'chu' }
+  ];
+  g.forEach(function (x) { x.avg = x.rows.length ? sum(x.rows, function (r) { return r.tickets; }) / x.rows.length : 0; });
+  const max = Math.max(1, g[0].avg, g[1].avg);
+  const body = g.map(function (x) {
+    if (!x.rows.length) return '<div class="row"><div class="lab">' + x.k + '</div><div class="track empty" role="img" aria-label="' + x.k + ': no customers in view"></div><div class="val">No customers in view</div></div>';
+    return '<div class="row"><div class="lab">' + x.k + '</div>' +
+      '<div class="track" role="img" aria-label="' + x.k + ': ' + one(x.avg) + ' tickets per customer on average">' +
+      '<div class="seg ' + x.cls + ' only" tabindex="0" style="flex:' + (x.avg / max * 100) + ' 1 0" data-tip="' + x.k + ': ' + one(x.avg) + ' tickets per customer"></div>' +
+      '<div style="flex:' + ((1 - x.avg / max) * 100) + ' 1 0"></div></div>' +
+      '<div class="val"><b style="color:var(--ink)">' + one(x.avg) + ' tickets</b> per customer · ' + x.rows.length + ' customers</div></div>';
+  }).join('');
+  let ins = 'Both groups need customers in view to compare.';
+  if (g[0].rows.length && g[1].rows.length) {
+    ins = '<b>Churned customers</b> raised ' + one(g[1].avg) + ' support tickets on average, against ' + one(g[0].avg) + ' for retained customers.';
+  }
+  return '<article class="card"><div><h2>Support tickets</h2><p class="desc">Average tickets raised per customer, churned vs retained.</p></div><div class="rows">' + body + '</div><p class="insight">' + ins + '</p></article>';
+}
+
+function renderCharts(rows) {
+  $('cards').innerHTML =
+    rateChart('Churn by contract', 'Share of customers who left, by contract type.', rows, DIMS[0]) +
+    rateChart('Churn by tenure', 'Share of customers who left, by months as a customer.', rows, DIMS[1]) +
+    rateChart('Churn by payment method', 'Share of customers who left, by how they pay.', rows, DIMS[2]) +
+    revenueChart(rows) +
+    ticketChart(rows);
+}
+
+/* ---------- tables ---------- */
+function renderSegments(rows) {
+  const out = [];
+  PLANS.forEach(function (p) {
+    CONTRACTS.forEach(function (c) {
+      const s = rows.filter(function (r) { return r.plan === p && r.contract === c; });
+      if (!s.length) return;
+      const ch = s.filter(function (r) { return r.churn; });
+      out.push({ p: p, c: c, n: s.length, ch: ch.length, mrr: sum(s, function (r) { return r.mc; }), lost: sum(ch, function (r) { return r.mc; }) });
+    });
+  });
+  if (!out.length) { $('segtable').innerHTML = '<div class="empty-msg">No customers match the filters.</div>'; $('seginsight').innerHTML = ''; return; }
+  $('segtable').innerHTML = '<table><thead><tr><th>Plan</th><th>Contract</th><th class="num">Customers</th><th class="num">Churned</th><th class="num">Churn rate</th><th class="num">MRR</th><th class="num">MRR lost</th></tr></thead><tbody>' +
+    out.map(function (s) {
+      return '<tr><td>' + s.p + '</td><td>' + s.c + '</td><td class="num">' + s.n + '</td><td class="num">' + s.ch + '</td><td class="num">' + pct(s.ch / s.n) + '</td><td class="num">' + money(s.mrr) + '</td><td class="num">' + money(s.lost) + '</td></tr>';
+    }).join('') + '</tbody></table>';
+  const hot = out.filter(function (s) { return s.ch > 0; }).sort(function (a, b) { return b.lost - a.lost; });
+  $('seginsight').innerHTML = hot.length
+    ? '<b>Biggest revenue leak:</b> ' + hot[0].p + ' on ' + hot[0].c + ', ' + money(hot[0].lost) + ' a month lost (' + hot[0].ch + ' of ' + hot[0].n + ' customers).'
+    : 'No churned customers in the segments currently in view.';
+}
+
+function renderData(rows) {
+  if (!rows.length) { $('datatable').innerHTML = '<div class="empty-msg">No customers match the filters. Tick at least one option in each filter group.</div>'; return; }
+  $('datatable').innerHTML = '<table><thead><tr><th>Customer</th><th>Plan</th><th>Contract</th><th>Payment</th><th class="num">Tenure (months)</th><th class="num">Monthly charge</th><th class="num">Tickets</th><th>Status</th></tr></thead><tbody>' +
+    rows.map(function (r) {
+      return '<tr><td>' + r.id + '</td><td>' + r.plan + '</td><td>' + r.contract + '</td><td>' + r.pay + '</td><td class="num">' + r.tenure + '</td><td class="num">' + money(r.mc) + '</td><td class="num">' + r.tickets + '</td><td><span class="tag ' + (r.churn ? 'chu">Churned' : 'ret">Retained') + '</span></td></tr>';
+    }).join('') + '</tbody></table>';
+}
+
+function render() {
+  const rows = filtered();
+  $('count').textContent = 'Showing ' + rows.length + ' of ' + ALL.length + ' customers';
+  renderTiles(rows);
+  renderCharts(rows);
+  renderSegments(rows);
+  renderData(rows);
+}
+
+/* ---------- tooltip ---------- */
+const tip = $('tip');
+function showTip(el, x, y) {
+  const t = el && el.getAttribute && el.getAttribute('data-tip');
+  if (!t) { tip.style.display = 'none'; return; }
+  tip.textContent = t;
+  tip.style.display = 'block';
+  const w = tip.offsetWidth;
+  tip.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, x + 12)) + 'px';
+  tip.style.top = (y + 16) + 'px';
+}
+document.addEventListener('mouseover', function (e) { showTip(e.target.closest('[data-tip]'), e.clientX, e.clientY); });
+document.addEventListener('mousemove', function (e) { if (e.target.closest && e.target.closest('[data-tip]')) showTip(e.target.closest('[data-tip]'), e.clientX, e.clientY); });
+document.addEventListener('mouseout', function (e) { if (!e.relatedTarget || !e.relatedTarget.closest || !e.relatedTarget.closest('[data-tip]')) tip.style.display = 'none'; });
+document.addEventListener('focusin', function (e) {
+  const el = e.target.closest && e.target.closest('[data-tip]');
+  if (el) { const b = el.getBoundingClientRect(); showTip(el, b.left, b.bottom - 12); }
+});
+document.addEventListener('focusout', function () { tip.style.display = 'none'; });
+
+buildFilters();
+render();
+</script>
+
+</body></html>
